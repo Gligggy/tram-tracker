@@ -25,7 +25,7 @@
     async function updateTrams() {
       try {
         const proxy = "https://corsproxy.io/?"; // Bypass CORS
-        const apiUrl = "https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=3";
+        const apiUrl = "https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=4";
 
         const response = await fetch(proxy + apiUrl);
         const trams = await response.json();
@@ -70,3 +70,4 @@
   </script>
 </body>
 </html>
+
