@@ -1,136 +1,180 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tram Tracker – Lines 1-8</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Tram Tracker – Lines 1-8</title>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
-  <style>
-    body, html { height: 100%; margin: 0; padding: 0; }
-    #map { width: 100%; height: 100%; }
+<style>
+  body, html { height: 100%; margin: 0; padding: 0; }
+  #map { width: 100%; height: 100%; }
 
-    .arrow-outer {
-      width: 40px;
-      height: 40px;
-      clip-path: polygon(
-        50% 0%,   /* tip */
-        90% 100%, /* right tail */
-        50% 80%,  /* middle notch */
-        10% 100%  /* left tail */
-      );
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      background: #D50000;
-    }
-
-    .arrow-inner {
-      width: 30px;
-      height: 30px;
-      transform: rotate(0deg); /* number stays upright */
-    }
-  </style>
-</head>
-<body>
-<div id="map"></div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<script>
-  const map = L.map('map').setView([47.07, 21.92], 13);
-
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 20,
-    attribution: '© OpenStreetMap contributors'
-  }).addTo(map);
-
-  let currentMarkers = [];
-  const previousPositions = {};  // keyed by tram code
-  const previousRotations = {};  // keyed by tram code
-  const MIN_MOVE = 0.00001;      // minimal lat/lng change to update rotation
-
-  // Tram numbers → icon URLs (you can customize)
-  const tramImages = {
-    "1": "https://cdn-icons-png.flaticon.com/512/8068/8068017.png",
-    "2": "https://cdn-icons-png.flaticon.com/512/8068/8068073.png",
-    "3": "https://cdn-icons-png.flaticon.com/512/8068/8068129.png",
-    "4": "https://cdn-icons-png.flaticon.com/512/8068/8068184.png",
-    "5": "https://cdn-icons-png.flaticon.com/512/8068/8068238.png",
-    "6": "https://cdn-icons-png.flaticon.com/512/8068/8068292.png",
-    "7": "https://cdn-icons-png.flaticon.com/512/8068/8068348.png",
-    "8": "https://cdn-icons-png.flaticon.com/512/8068/8068393.png"
-  };
-
-  async function updateTrams() {
-    try {
-      // Remove all old markers
-      currentMarkers.forEach(marker => map.removeLayer(marker));
-      currentMarkers = [];
-
-      const proxy = "https://corsproxy.io/?";
-
-      // Loop through lines 1-8
-      for (let line = 1; line <= 8; line++) {
-        const apiUrl = `https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=${line}`;
-        const response = await fetch(proxy + apiUrl);
-        const trams = await response.json();
-
-        trams.forEach(tram => {
-          const lat = parseFloat(tram.lat);
-          const lng = parseFloat(tram.lng);
-
-          const match = tram.title.match(/Cod:\s*(\d+)/i);
-          const tramCode = match ? match[1] : line.toString();
-
-          let rotation = previousRotations[tramCode] || 0;
-
-          if (previousPositions[tramCode]) {
-            const prev = previousPositions[tramCode];
-            const dx = lng - prev.lng;
-            const dy = lat - prev.lat;
-            const distance = Math.sqrt(dx*dx + dy*dy);
-
-            if (distance >= MIN_MOVE) {
-              rotation = (- Math.atan2(dy, dx) * (180 / Math.PI) + 90);
-              previousRotations[tramCode] = rotation;
-            }
-            console.log(`Tram ${tramCode} | Prev: ${prev.lat},${prev.lng} | Curr: ${lat},${lng} | Rotation: ${rotation.toFixed(2)}°`);
-          } else {
-            console.log(`Tram ${tramCode} first position: ${lat},${lng}`);
-            previousRotations[tramCode] = rotation;
-          }
-
-          previousPositions[tramCode] = { lat, lng };
-
-          const tramIcon = L.divIcon({
-            className: "",
-            html: `
-              <div class="arrow-outer" style="transform: rotate(${rotation}deg);">
-                <img class="arrow-inner" src="${tramImages[line]}" />
-              </div>
-            `,
-            iconSize: [36, 36],
-            iconAnchor: [18, 18],
-            popupAnchor: [0, -18]
-          });
-
-          const marker = L.marker([lat, lng], { icon: tramIcon })
-            .bindPopup(tram.title)
-            .addTo(map);
-
-          currentMarkers.push(marker);
-        });
-      }
-
-    } catch (err) {
-      console.error("Failed to update trams:", err);
-    }
+  .arrow-outer {
+    width: 40px;
+    height: 40px;
+    clip-path: polygon(
+      50% 0%,   /* tip */
+      90% 100%, /* right tail */
+      50% 80%,  /* middle notch */
+      10% 100%  /* left tail */
+    );
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: #D50000;
   }
 
-  updateTrams();
-  setInterval(updateTrams, 10000);
+  .arrow-inner {
+    width: 30px;
+    height: 30px;
+    transform: rotate(0deg);
+  }
+
+  /* Toggle buttons container */
+  #tram-toggle {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    z-index: 1000;
+  }
+
+  .toggle-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border: 2px solid black;
+    background: white;
+    padding: 2px;
+    user-select: none;
+  }
+
+  .toggle-btn img {
+    width: 28px;
+    height: 28px;
+  }
+</style>
+</head>
+<body>
+
+<div id="map"></div>
+<div id="tram-toggle"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const map = L.map('map', { zoomControl: false }).setView([47.07, 21.92], 13); // disable default zoom
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  attribution: '© OpenStreetMap contributors'
+}).addTo(map);
+
+let currentMarkers = [];
+const previousPositions = {};
+const previousRotations = {};
+const MIN_MOVE = 0.00001;
+const visibleLines = {1:true,2:true,3:true,4:true,5:true,6:true,7:true,8:true};
+
+// Tram icons
+const tramIcons = {
+  "1": "https://cdn-icons-png.flaticon.com/512/8068/8068017.png",
+  "2": "https://cdn-icons-png.flaticon.com/512/8068/8068073.png",
+  "3": "https://cdn-icons-png.flaticon.com/512/8068/8068129.png",
+  "4": "https://cdn-icons-png.flaticon.com/512/8068/8068184.png",
+  "5": "https://cdn-icons-png.flaticon.com/512/8068/8068238.png",
+  "6": "https://cdn-icons-png.flaticon.com/512/8068/8068292.png",
+  "7": "https://cdn-icons-png.flaticon.com/512/8068/8068348.png",
+  "8": "https://cdn-icons-png.flaticon.com/512/8068/8068393.png",
+};
+
+// Create toggle buttons using tram icons
+const toggleDiv = document.getElementById('tram-toggle');
+for(let i=1;i<=8;i++){
+  const btn = document.createElement('div');
+  btn.className = 'toggle-btn';
+  btn.dataset.line = i;
+
+  const img = document.createElement('img');
+  img.src = tramIcons[i];
+  btn.appendChild(img);
+
+  btn.onclick = () => {
+    visibleLines[i] = !visibleLines[i];
+    btn.style.opacity = visibleLines[i] ? '1' : '0.4';
+  };
+  toggleDiv.appendChild(btn);
+}
+
+async function updateTrams() {
+  try {
+    currentMarkers.forEach(marker => map.removeLayer(marker));
+    currentMarkers = [];
+
+    const proxy = "https://corsproxy.io/?";
+
+    for (let line=1; line<=8; line++) {
+      if (!visibleLines[line]) continue;
+
+      const apiUrl = `https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=${line}`;
+      const response = await fetch(proxy + apiUrl);
+      const trams = await response.json();
+
+      trams.forEach(tram => {
+        const lat = parseFloat(tram.lat);
+        const lng = parseFloat(tram.lng);
+        const match = tram.title.match(/Cod:\s*(\d+)/i);
+        const tramCode = match ? match[1] : "unknown";
+
+        let rotation = previousRotations[tramCode] || 0;
+
+        if (previousPositions[tramCode]) {
+          const prev = previousPositions[tramCode];
+          const dx = lng - prev.lng;
+          const dy = lat - prev.lat;
+          const distance = Math.sqrt(dx*dx + dy*dy);
+
+          if (distance >= MIN_MOVE) {
+            rotation = (- Math.atan2(dy, dx) * (180 / Math.PI) + 90);
+            previousRotations[tramCode] = rotation;
+          }
+        }
+        previousPositions[tramCode] = { lat, lng };
+
+        const iconUrl = tramIcons[line] || tramIcons["1"];
+        const tramIcon = L.divIcon({
+          className: "",
+          html: `
+            <div class="arrow-outer" style="transform: rotate(${rotation}deg);">
+              <img class="arrow-inner" src="${iconUrl}" />
+            </div>
+          `,
+          iconSize: [36,36],
+          iconAnchor: [18,18],
+          popupAnchor: [0,-18]
+        });
+
+        const marker = L.marker([lat,lng], {icon: tramIcon})
+          .bindPopup(tram.title)
+          .addTo(map);
+
+        currentMarkers.push(marker);
+      });
+    }
+
+  } catch(err) {
+    console.error("Failed to update trams:", err);
+  }
+}
+
+updateTrams();
+setInterval(updateTrams, 10000);
 </script>
 </body>
 </html>
