@@ -14,65 +14,62 @@
   <div id="map"></div>
 
   <script>
-    // Initialize the map centered on Oradea
     const map = L.map('map').setView([47.07, 21.92], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    // Keep track of markers by tram ID
-    const tramMarkers = {};
+    const tramMarkers = {}; // stores markers by tram ID
 
     async function updateTrams() {
       const proxy = "https://corsproxy.io/?";
       const baseUrl = "https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=";
-
-      // Track all tram IDs we see this cycle
       const seenIds = new Set();
 
       try {
-        // Loop through tram lines 1–8
+        // fetch all tram lines in parallel
+        const promises = [];
         for (let line = 1; line <= 8; line++) {
-          const url = proxy + baseUrl + line;
-          const response = await fetch(url);
-          const trams = await response.json();
-
-          trams.forEach(tram => {
-            const lat = parseFloat(tram.lat);
-            const lng = parseFloat(tram.lng);
-            const id = tram.id;
-            seenIds.add(id);
-
-            if (tramMarkers[id]) {
-              // Update existing tram position
-              tramMarkers[id].setLatLng([lat, lng]);
-            } else {
-              // Create a new marker
-              const marker = L.marker([lat, lng]).bindPopup(
-                `<b>${tram.title}</b><br>Linia: ${line}`
-              );
-              marker.addTo(map);
-              tramMarkers[id] = marker;
-            }
-          });
+          promises.push(fetch(proxy + baseUrl + line).then(r => r.json()).catch(() => []));
         }
 
-        // Remove any markers not in current data
+        // wait for all results
+        const allResults = await Promise.all(promises);
+        const allTrams = allResults.flat(); // flatten into one array
+
+        // update markers
+        allTrams.forEach(tram => {
+          const id = tram.id;
+          seenIds.add(id);
+          const lat = parseFloat(tram.lat);
+          const lng = parseFloat(tram.lng);
+          const title = tram.title;
+
+          if (tramMarkers[id]) {
+            tramMarkers[id].setLatLng([lat, lng]);
+          } else {
+            const marker = L.marker([lat, lng]).bindPopup(`<b>${title}</b>`);
+            marker.addTo(map);
+            tramMarkers[id] = marker;
+          }
+        });
+
+        // remove trams that disappeared
         for (let id in tramMarkers) {
           if (!seenIds.has(id)) {
             map.removeLayer(tramMarkers[id]);
             delete tramMarkers[id];
           }
         }
+
       } catch (err) {
         console.error("Failed to update trams:", err);
       }
     }
 
-    // Initial load
+    // load immediately, then update every 10s
     updateTrams();
-    // Update every 10 seconds
     setInterval(updateTrams, 10000);
   </script>
 </body>
