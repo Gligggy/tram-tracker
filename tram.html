@@ -187,6 +187,27 @@ async function updateTrams() {
     console.error("Failed to update trams:", err);
   }
 }
+// Show user location
+map.locate({setView: true, maxZoom: 16, watch: true});
+
+let myMarker = null;
+map.on('locationfound', (e) => {
+  const latlng = e.latlng;
+  if (!myMarker) {
+    myMarker = L.circleMarker(latlng, {
+      radius: 8,
+      color: '#1976D2',
+      fillColor: '#1976D2',
+      fillOpacity: 0.8
+    }).addTo(map).bindPopup("You are here");
+  } else {
+    myMarker.setLatLng(latlng);
+  }
+});
+
+map.on('locationerror', (err) => {
+  console.warn("Location not available:", err.message);
+});
 
 updateTrams();
 setInterval(updateTrams, 10000);
