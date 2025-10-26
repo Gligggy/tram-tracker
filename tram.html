@@ -1,73 +1,79 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="UTF-8">
-  <title>Tram Tracker</title>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <meta charset="utf-8">
+  <title>Oradea Trams Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    #map { height: 100vh; width: 100vw; }
+    html, body { height: 100%; margin: 0; padding: 0; }
+    #map { width: 100%; height: 100%; }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script>
-    // Initialize the map
-    const map = L.map('map').setView([47.0707, 21.9213], 13);
-
+    // Initialize the map centered on Oradea
+    const map = L.map('map').setView([47.07, 21.92], 13);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
+      maxZoom: 19,
+      attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
-    const tramMarkers = {}; // Track markers by tram ID
+    // Keep track of markers by tram ID
+    const tramMarkers = {};
 
     async function updateTrams() {
+      const proxy = "https://corsproxy.io/?";
+      const baseUrl = "https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=";
+
+      // Track all tram IDs we see this cycle
+      const seenIds = new Set();
+
       try {
-        const proxy = "https://corsproxy.io/?"; // Bypass CORS
-        const apiUrl = "https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=4";
+        // Loop through tram lines 1–8
+        for (let line = 1; line <= 8; line++) {
+          const url = proxy + baseUrl + line;
+          const response = await fetch(url);
+          const trams = await response.json();
 
-        const response = await fetch(proxy + apiUrl);
-        const trams = await response.json();
+          trams.forEach(tram => {
+            const lat = parseFloat(tram.lat);
+            const lng = parseFloat(tram.lng);
+            const id = tram.id;
+            seenIds.add(id);
 
-        const seenIds = new Set();
+            if (tramMarkers[id]) {
+              // Update existing tram position
+              tramMarkers[id].setLatLng([lat, lng]);
+            } else {
+              // Create a new marker
+              const marker = L.marker([lat, lng]).bindPopup(
+                `<b>${tram.title}</b><br>Linia: ${line}`
+              );
+              marker.addTo(map);
+              tramMarkers[id] = marker;
+            }
+          });
+        }
 
-        trams.forEach(tram => {
-          const lat = parseFloat(tram.lat);
-          const lng = parseFloat(tram.lng);
-          seenIds.add(tram.id);
-
-          if (tramMarkers[tram.id]) {
-            // Update existing marker
-            tramMarkers[tram.id].setLatLng([lat, lng]);
-          } else {
-            // Create new marker
-            const marker = L.marker([lat, lng])
-              .bindPopup(tram.title)
-              .addTo(map);
-            tramMarkers[tram.id] = marker;
-          }
-        });
-
-        // Remove markers no longer in API
+        // Remove any markers not in current data
         for (let id in tramMarkers) {
           if (!seenIds.has(id)) {
             map.removeLayer(tramMarkers[id]);
             delete tramMarkers[id];
           }
         }
-
       } catch (err) {
         console.error("Failed to update trams:", err);
       }
     }
 
-    // Initial update
+    // Initial load
     updateTrams();
-
-    // Update every 5 seconds
-    setInterval(updateTrams, 5000);
+    // Update every 10 seconds
+    setInterval(updateTrams, 10000);
   </script>
 </body>
 </html>
-
