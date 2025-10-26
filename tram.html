@@ -1,74 +1,102 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Oradea Trams Tracker</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tram Tracker – Lines 1-8</title>
+
+  <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <style>
-    html, body { height: 100%; margin: 0; padding: 0; }
-    #map { width: 100%; height: 100%; }
+    body, html {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
 
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
   <script>
+    // Initialize map
     const map = L.map('map').setView([47.07, 21.92], 13);
+
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19,
-      attribution: '&copy; OpenStreetMap contributors'
+      maxZoom: 20,
+      attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    const tramMarkers = {}; // stores markers by tram ID
+    // Store all current markers to remove them each update
+    let currentMarkers = [];
 
+    // Tram number → icon mapping (set your own image URLs here)
+    const tramIcons = {
+      "1": "https://cdn-icons-png.flaticon.com/512/8068/8068017.png",
+      "2": "https://cdn-icons-png.flaticon.com/512/8068/8068073.png",
+      "3": "https://cdn-icons-png.flaticon.com/512/8068/8068129.png",
+      "4": "https://cdn-icons-png.flaticon.com/512/8068/8068184.png",
+      "5": "https://cdn-icons-png.flaticon.com/512/8068/8068238.png",
+      "6": "https://cdn-icons-png.flaticon.com/512/8068/8068292.png",
+      "7": "https://cdn-icons-png.flaticon.com/512/8068/8068348.png",
+      "8": "https://cdn-icons-png.flaticon.com/512/8068/8068393.png",
+    };
+
+    // Function to fetch and display all trams
     async function updateTrams() {
-      const proxy = "https://corsproxy.io/?";
-      const baseUrl = "https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=";
-      const seenIds = new Set();
-
       try {
-        // fetch all tram lines in parallel
-        const promises = [];
+        // Remove all old markers
+        currentMarkers.forEach(marker => map.removeLayer(marker));
+        currentMarkers = [];
+
+        const proxy = "https://corsproxy.io/?";
+
+        // Fetch all lines 1-8
         for (let line = 1; line <= 8; line++) {
-          promises.push(fetch(proxy + baseUrl + line).then(r => r.json()).catch(() => []));
+          const apiUrl = `https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=${line}`;
+          const response = await fetch(proxy + apiUrl);
+          const trams = await response.json();
+
+          trams.forEach(tram => {
+            const lat = parseFloat(tram.lat);
+            const lng = parseFloat(tram.lng);
+            
+            // Extract the tram number from the title (e.g., "Cod: 44T" → "44T")
+            const match = tram.title.match(/Cod:\s*(\d+)/i);
+            const tramNumber = match ? match[1] : line; // fallback to line if not found
+
+            // Choose icon URL based on tram number
+            const iconUrl = tramIcons[tramNumber] || tramIcons[line] || tramIcons["1"];
+
+            const tramIcon = L.icon({
+              iconUrl: iconUrl,
+              iconSize: [36, 36],
+              iconAnchor: [18, 18],
+              popupAnchor: [0, -18]
+            });
+
+            const marker = L.marker([lat, lng], { icon: tramIcon })
+              .bindPopup(tram.title)
+              .addTo(map);
+
+            currentMarkers.push(marker);
+          });
         }
-
-        // wait for all results
-        const allResults = await Promise.all(promises);
-        const allTrams = allResults.flat(); // flatten into one array
-
-        // update markers
-        allTrams.forEach(tram => {
-          const id = tram.id;
-          seenIds.add(id);
-          const lat = parseFloat(tram.lat);
-          const lng = parseFloat(tram.lng);
-          const title = tram.title;
-
-          if (tramMarkers[id]) {
-            tramMarkers[id].setLatLng([lat, lng]);
-          } else {
-            const marker = L.marker([lat, lng]).bindPopup(`<b>${title}</b>`);
-            marker.addTo(map);
-            tramMarkers[id] = marker;
-          }
-        });
-
-        // remove trams that disappeared
-        for (let id in tramMarkers) {
-          if (!seenIds.has(id)) {
-            map.removeLayer(tramMarkers[id]);
-            delete tramMarkers[id];
-          }
-        }
-
       } catch (err) {
         console.error("Failed to update trams:", err);
       }
     }
 
-    // load immediately, then update every 10s
+    // Initial load and refresh every 10 seconds
     updateTrams();
     setInterval(updateTrams, 10000);
   </script>
