@@ -6,7 +6,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Tram Tracker – Lines 1-8</title>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 
 <style>
 html, body {
@@ -46,7 +47,6 @@ html, body {
 .arrow-inner {
     width: 30px;
     height: 30px;
-    transform: rotate(0deg);
 }
 
 #tram-toggle {
@@ -98,12 +98,12 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 }).addTo(map);
 
 let currentMarkers = [];
-
 const previousPositions = {};
 const previousRotations = {};
 const initialRotations = {};
 
 const MIN_MOVE = 0.00001;
+const API_KEY = "YOUR_API_KEY";
 
 const visibleLines = {
     1: true, 2: true, 3: true, 4: true,
@@ -127,7 +127,6 @@ const toggleDiv = document.getElementById('tram-toggle');
 for (let i = 1; i <= 8; i++) {
     const btn = document.createElement('div');
     btn.className = 'toggle-btn';
-    btn.dataset.line = i;
 
     const img = document.createElement('img');
     img.src = tramIcons[i];
@@ -144,38 +143,51 @@ for (let i = 1; i <= 8; i++) {
     toggleDiv.appendChild(btn);
 }
 
+async function fetchLine(line) {
+    const apiUrl =
+        `https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=${line}`;
+
+    const params = new URLSearchParams({
+        url: apiUrl
+    });
+
+    // Add the key only when one has been configured.
+    if (API_KEY !== "YOUR_API_KEY") {
+        params.set("key", API_KEY);
+    }
+
+    const proxyUrl = `https://corsproxy.io/?${params}`;
+
+    const response = await fetch(proxyUrl);
+
+    if (!response.ok) {
+        const details = await response.text();
+        throw new Error(
+            `Line ${line}: HTTP ${response.status}. ` +
+            details.slice(0, 200)
+        );
+    }
+
+    const data = await response.json();
+
+    if (!Array.isArray(data)) {
+        throw new Error(
+            `Line ${line}: expected a JSON array, received another response type`
+        );
+    }
+
+    return data;
+}
+
 async function updateTrams() {
     try {
         const allTrams = [];
 
-        // Fetch all visible lines before replacing existing markers.
+        // Fetch every visible line.
         for (let line = 1; line <= 8; line++) {
             if (!visibleLines[line]) continue;
 
-            const apiUrl =
-                `https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=${line}`;
-
-            const proxyUrl =
-                'https://corsproxy.io/?url=' +
-                encodeURIComponent(apiUrl);
-
-            console.log(`Fetching line ${line}:`, proxyUrl);
-
-            const response = await fetch(proxyUrl);
-
-            if (!response.ok) {
-                throw new Error(
-                    `Line ${line}: HTTP ${response.status}`
-                );
-            }
-
-            const trams = await response.json();
-
-            if (!Array.isArray(trams)) {
-                throw new Error(
-                    `Line ${line}: response is not a JSON array`
-                );
-            }
+            const trams = await fetchLine(line);
 
             console.log(`Line ${line}: ${trams.length} trams`);
 
@@ -184,16 +196,16 @@ async function updateTrams() {
             });
         }
 
-        // Replace markers only after fetching succeeds.
+        // Keep existing markers if a request fails.
         currentMarkers.forEach(marker => map.removeLayer(marker));
         currentMarkers = [];
 
         allTrams.forEach(({ tram, line }) => {
-            const lat = parseFloat(tram.lat);
-            const lng = parseFloat(tram.lng);
+            const lat = Number.parseFloat(tram.lat);
+            const lng = Number.parseFloat(tram.lng);
 
             if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
-                console.warn('Invalid tram coordinates:', tram);
+                console.warn("Invalid coordinates:", tram);
                 return;
             }
 
@@ -208,11 +220,11 @@ async function updateTrams() {
                 initialRotations[tramCode] = true;
             }
 
-            if (previousPositions[tramCode]) {
-                const prev = previousPositions[tramCode];
+            const previous = previousPositions[tramCode];
 
-                const dx = lng - prev.lng;
-                const dy = lat - prev.lat;
+            if (previous) {
+                const dx = lng - previous.lng;
+                const dy = lat - previous.lat;
                 const distance = Math.sqrt(dx * dx + dy * dy);
 
                 if (distance >= MIN_MOVE) {
@@ -230,10 +242,10 @@ async function updateTrams() {
             const isCircle = initialRotations[tramCode];
 
             const tramIcon = L.divIcon({
-                className: '',
+                className: "",
                 html: `
-                    <div class="arrow-outer ${isCircle ? 'circle' : ''}"
-                         style="${!isCircle ? `transform: rotate(${rotation}deg);` : ''}">
+                    <div class="arrow-outer ${isCircle ? "circle" : ""}"
+                         style="${!isCircle ? `transform: rotate(${rotation}deg);` : ""}">
                         <img class="arrow-inner"
                              src="${iconUrl}"
                              alt="Tram ${tramCode}">
@@ -255,42 +267,44 @@ async function updateTrams() {
             currentMarkers.push(marker);
         });
 
-        console.log(`Updated map: ${currentMarkers.length} tram markers`);
+        console.log(
+            `Map updated: ${currentMarkers.length} tram markers`
+        );
 
-    } catch (err) {
-        console.error('Failed to update trams:', err);
+    } catch (error) {
+        console.error("Failed to update trams:", error);
     }
 }
 
 // Show user location
+let myMarker = null;
+
 map.locate({
     setView: true,
     maxZoom: 16,
     watch: true
 });
 
-let myMarker = null;
-
-map.on('locationfound', e => {
+map.on("locationfound", e => {
     if (!myMarker) {
         myMarker = L.circleMarker(e.latlng, {
             radius: 8,
-            color: '#1976D2',
-            fillColor: '#1976D2',
+            color: "#1976D2",
+            fillColor: "#1976D2",
             fillOpacity: 0.8
         })
         .addTo(map)
-        .bindPopup('You are here');
+        .bindPopup("You are here");
     } else {
         myMarker.setLatLng(e.latlng);
     }
 });
 
-map.on('locationerror', err => {
-    console.warn('Location not available:', err.message);
+map.on("locationerror", error => {
+    console.warn("Location unavailable:", error.message);
 });
 
-// Initial load and refresh every 10 seconds
+// Initial load and automatic refresh
 updateTrams();
 setInterval(updateTrams, 10000);
 </script>
