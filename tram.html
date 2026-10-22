@@ -4,6 +4,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Tram Tracker – Lines 1-8</title>
 
 <link rel="stylesheet"
@@ -92,10 +93,14 @@ const map = L.map('map', {
     zoomControl: false
 }).setView([47.07, 21.92], 13);
 
+
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '© OpenStreetMap contributors'
 }).addTo(map);
+
+
+
 
 let currentMarkers = [];
 const previousPositions = {};
@@ -105,10 +110,20 @@ const initialRotations = {};
 const MIN_MOVE = 0.00001;
 const API_KEY = "1e2602b9";
 
-const visibleLines = {
-    1: true, 2: true, 3: true, 4: true,
-    5: true, 6: true, 7: true, 8: true
-};
+const params = new URLSearchParams(window.location.search);
+const selectedLines = params.get("lines");
+
+const visibleLines = Object.fromEntries(
+    Array.from({ length: 8 }, (_, i) => {
+        const line = i + 1;
+        return [
+            line,
+            selectedLines === null
+                ? true
+                : selectedLines.split(",").includes(String(line))
+        ];
+    })
+);
 
 const tramIcons = {
     "1": "https://cdn-icons-png.flaticon.com/512/8068/8068017.png",
@@ -127,6 +142,7 @@ const toggleDiv = document.getElementById('tram-toggle');
 for (let i = 1; i <= 8; i++) {
     const btn = document.createElement('div');
     btn.className = 'toggle-btn';
+    btn.style.opacity = visibleLines[i] ? '1' : '0.4';
 
     const img = document.createElement('img');
     img.src = tramIcons[i];
@@ -137,6 +153,25 @@ for (let i = 1; i <= 8; i++) {
     btn.onclick = () => {
         visibleLines[i] = !visibleLines[i];
         btn.style.opacity = visibleLines[i] ? '1' : '0.4';
+
+        const selected = Object.keys(visibleLines)
+            .filter(line => visibleLines[line])
+            .join(",");
+
+        const params = new URLSearchParams(window.location.search);
+
+        if (selected) {
+            params.set("lines", selected);
+        } else {
+            params.set("lines", "");
+        }
+
+        history.replaceState(
+            null,
+            "",
+            `${window.location.pathname}?${params}`
+        );
+
         updateTrams();
     };
 
@@ -146,16 +181,19 @@ for (let i = 1; i <= 8; i++) {
 async function fetchLine(line) {
     const apiUrl =
         `https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=${line}`;
-      const params = new URLSearchParams({
-          key: API_KEY,
-          url: apiUrl
-      });
-      
-      const proxyUrl = `https://corsproxy.io/?${params}`;
-      
-      console.log("Proxy URL has key:", params.has("key"));
-      console.log("Proxy URL:", proxyUrl.replace(API_KEY, "[REDACTED]"));
-      
+
+    const params = new URLSearchParams({
+        key: API_KEY,
+        url: apiUrl
+    });
+
+    params.set("_", Date.now()); // ADD THIS LINE
+
+    const proxyUrl = `https://corsproxy.io/?${params}`;
+
+    console.log("Proxy URL has key:", params.has("key"));
+    console.log("Proxy URL:", proxyUrl.replace(API_KEY, "[REDACTED]"));
+
     const response = await fetch(proxyUrl);
 
     if (!response.ok) {
@@ -176,6 +214,14 @@ async function updateTrams() {
             if (!visibleLines[line]) continue;
 
             const trams = await fetchLine(line);
+
+            console.log("Line", line, "received at", new Date().toLocaleTimeString());
+            console.table(trams);
+
+            if (!Array.isArray(trams)) {
+                console.error(`Line ${line}: invalid response`, trams);
+                continue;
+            }
 
             console.log(`Line ${line}: ${trams.length} trams`);
 
@@ -267,26 +313,26 @@ async function updateTrams() {
 // Show user location
 let myMarker = null;
 
-map.locate({
-    setView: true,
-    maxZoom: 16,
-    watch: true
-});
+// map.locate({
+//     setView: true,
+//     maxZoom: 16,
+//     watch: true
+// });
 
-map.on("locationfound", e => {
-    if (!myMarker) {
-        myMarker = L.circleMarker(e.latlng, {
-            radius: 8,
-            color: "#1976D2",
-            fillColor: "#1976D2",
-            fillOpacity: 0.8
-        })
-        .addTo(map)
-        .bindPopup("You are here");
-    } else {
-        myMarker.setLatLng(e.latlng);
-    }
-});
+// map.on("locationfound", e => {
+//     if (!myMarker) {
+//         myMarker = L.circleMarker(e.latlng, {
+//             radius: 8,
+//             color: "#1976D2",
+//             fillColor: "#1976D2",
+//             fillOpacity: 0.8
+//         })
+//         .addTo(map)
+//         .bindPopup("You are here");
+//     } else {
+//         myMarker.setLatLng(e.latlng);
+//     }
+// });
 
 map.on("locationerror", error => {
     console.warn("Location unavailable:", error.message);
@@ -294,7 +340,7 @@ map.on("locationerror", error => {
 
 // Initial load and automatic refresh
 updateTrams();
-setInterval(updateTrams, 10000);
+setInterval(updateTrams, 1000);
 </script>
 
 </body>
