@@ -158,7 +158,8 @@ async function fetchLine(line) {
 
     const proxyUrl = `https://corsproxy.io/?${params}`;
 
-    const response = await fetch(proxyUrl);
+    // const response = await fetch(proxyUrl);
+      const response = await fetch(apiUrl);
 
     if (!response.ok) {
         const details = await response.text();
@@ -187,7 +188,8 @@ async function updateTrams() {
         for (let line = 1; line <= 8; line++) {
             if (!visibleLines[line]) continue;
 
-            const trams = await fetchLine(line);
+            // const trams = await fetchLine(line);
+            const trams = await response.json();      
 
             console.log(`Line ${line}: ${trams.length} trams`);
 
