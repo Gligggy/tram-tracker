@@ -146,15 +146,14 @@ for (let i = 1; i <= 8; i++) {
 async function fetchLine(line) {
     const apiUrl =
         `https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=${line}`;
-
-    const params = new URLSearchParams({
-        key: API_KEY,
-        url: apiUrl
-    });
-
-    const proxyUrl = `https://corsproxy.io/?${params}`;
-
-      console.log("API key present:", Boolean(API_KEY));
+      const params = new URLSearchParams({
+          key: API_KEY,
+          url: apiUrl
+      });
+      
+      const proxyUrl = `https://corsproxy.io/?${params}`;
+      
+      console.log("Proxy URL has key:", params.has("key"));
       console.log("Proxy URL:", proxyUrl.replace(API_KEY, "[REDACTED]"));
       
     const response = await fetch(proxyUrl);
