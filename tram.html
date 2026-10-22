@@ -147,32 +147,22 @@ async function fetchLine(line) {
     const apiUrl =
         `https://www.otlra.ro/templates/cassiopeia/php/get_vehicles_xml.php?line=${line}`;
 
-      const params = new URLSearchParams({
-          key: API_KEY,
-          url: apiUrl
-      });
+    const params = new URLSearchParams({
+        key: API_KEY,
+        url: apiUrl
+    });
 
     const proxyUrl = `https://corsproxy.io/?${params}`;
 
     const response = await fetch(proxyUrl);
 
     if (!response.ok) {
-        const details = await response.text();
         throw new Error(
-            `Line ${line}: HTTP ${response.status}. ` +
-            details.slice(0, 200)
+            `Line ${line}: HTTP ${response.status}: ${await response.text()}`
         );
     }
 
-    const data = await response.json();
-
-    if (!Array.isArray(data)) {
-        throw new Error(
-            `Line ${line}: expected a JSON array, received another response type`
-        );
-    }
-
-    return data;
+    return await response.json();
 }
 
 async function updateTrams() {
