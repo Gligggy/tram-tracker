@@ -154,6 +154,9 @@ async function fetchLine(line) {
 
     const proxyUrl = `https://corsproxy.io/?${params}`;
 
+      console.log("API key present:", Boolean(API_KEY));
+      console.log("Proxy URL:", proxyUrl.replace(API_KEY, "[REDACTED]"));
+      
     const response = await fetch(proxyUrl);
 
     if (!response.ok) {
